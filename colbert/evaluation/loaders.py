@@ -46,7 +46,11 @@ def load_qrels(qrels_path):
     avg_positive = round(sum(len(qrels[qid]) for qid in qrels) / len(qrels), 2)
 
     print_message(
-        "#> Loaded qrels for", len(qrels), "unique queries with", avg_positive, "positives per query on average.\n"
+        "#> Loaded qrels for",
+        len(qrels),
+        "unique queries with",
+        avg_positive,
+        "positives per query on average.\n",
     )
 
     return qrels
@@ -81,7 +85,9 @@ def load_topK(topK_path):
     Ks = [len(topK_pids[qid]) for qid in topK_pids]
 
     print_message("#> max(Ks) =", max(Ks), ", avg(Ks) =", round(sum(Ks) / len(Ks), 2))
-    print_message("#> Loaded the top-k per query for", len(queries), "unique queries.\n")
+    print_message(
+        "#> Loaded the top-k per query for", len(queries), "unique queries.\n"
+    )
 
     return queries, topK_docs, topK_pids
 
@@ -115,7 +121,10 @@ def load_topK_pids(topK_path, qrels):
         print()
 
     assert all(len(topK_pids[qid]) == len(set(topK_pids[qid])) for qid in topK_pids)
-    assert all(len(topK_positives[qid]) == len(set(topK_positives[qid])) for qid in topK_positives)
+    assert all(
+        len(topK_positives[qid]) == len(set(topK_positives[qid]))
+        for qid in topK_positives
+    )
 
     # Make them sets for fast lookups later
     topK_positives = {qid: set(topK_positives[qid]) for qid in topK_positives}
@@ -123,7 +132,9 @@ def load_topK_pids(topK_path, qrels):
     Ks = [len(topK_pids[qid]) for qid in topK_pids]
 
     print_message("#> max(Ks) =", max(Ks), ", avg(Ks) =", round(sum(Ks) / len(Ks), 2))
-    print_message("#> Loaded the top-k per query for", len(topK_pids), "unique queries.\n")
+    print_message(
+        "#> Loaded the top-k per query for", len(topK_pids), "unique queries.\n"
+    )
 
     if len(topK_positives) == 0:
         topK_positives = None
@@ -135,7 +146,9 @@ def load_topK_pids(topK_path, qrels):
 
         assert len(topK_pids) == len(topK_positives)
 
-        avg_positive = round(sum(len(topK_positives[qid]) for qid in topK_positives) / len(topK_pids), 2)
+        avg_positive = round(
+            sum(len(topK_positives[qid]) for qid in topK_positives) / len(topK_pids), 2
+        )
 
         print_message(
             "#> Concurrently got annotations for",
@@ -145,7 +158,9 @@ def load_topK_pids(topK_path, qrels):
             "positives per query on average.\n",
         )
 
-    assert qrels is None or topK_positives is None, "Cannot have both qrels and an annotated top-K file!"
+    assert (
+        qrels is None or topK_positives is None
+    ), "Cannot have both qrels and an annotated top-K file!"
 
     if topK_positives is None:
         topK_positives = qrels
@@ -160,9 +175,11 @@ def load_collection(collection_path):
 
     collection_df = pd.read_csv(collection_path, sep="\t")
     if len(collection_df.columns) == 3:
-        collection = (collection_df.iloc[:, 1] + " | " + collection_df.iloc[:, 2]).values
+        collection = (
+            collection_df.iloc[:, 1] + " | " + collection_df.iloc[:, 2]
+        ).values
     else:
-        collection = collection_df.iloc[:, 1].values
+        collection = collection_df.iloc[:, 1].values.tolist()
 
     return collection
 
@@ -193,9 +210,13 @@ def load_colbert(args, do_print=True):
 
     for k in ["query_maxlen", "doc_maxlen", "dim", "similarity", "amp"]:
         if "arguments" in checkpoint and hasattr(args, k):
-            if k in checkpoint["arguments"] and checkpoint["arguments"][k] != getattr(args, k):
+            if k in checkpoint["arguments"] and checkpoint["arguments"][k] != getattr(
+                args, k
+            ):
                 a, b = checkpoint["arguments"][k], getattr(args, k)
-                Run.warn(f"Got checkpoint['arguments']['{k}'] != args.{k} (i.e., {a} != {b})")
+                Run.warn(
+                    f"Got checkpoint['arguments']['{k}'] != args.{k} (i.e., {a} != {b})"
+                )
 
     if "arguments" in checkpoint:
         if args.rank < 1:

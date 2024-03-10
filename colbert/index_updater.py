@@ -1,24 +1,16 @@
 import os
 import ujson
 import torch
-import numpy as np
-import tqdm
 
-from colbert.search.index_loader import IndexLoader
-from colbert.indexing.index_saver import IndexSaver
 from colbert.indexing.collection_encoder import CollectionEncoder
 
-from colbert.utils.utils import lengths2offsets, print_message, dotdict, flatten
-from colbert.indexing.codecs.residual import ResidualCodec
+from colbert.utils.utils import print_message
 from colbert.indexing.utils import optimize_ivf
 from colbert.search.strided_tensor import StridedTensor
 from colbert.modeling.checkpoint import Checkpoint
-from colbert.utils.utils import print_message, batch
-from colbert.data import Collection
+from colbert.utils.utils import print_message
 from colbert.indexing.codecs.residual_embeddings import ResidualEmbeddings
-from colbert.indexing.codecs.residual_embeddings_strided import (
-    ResidualEmbeddingsStrided,
-)
+
 from colbert.indexing.utils import optimize_ivf
 
 # For testing writing into new chunks, can set DEFAULT_CHUNKSIZE smaller (e.g. 1 or 2)
@@ -26,7 +18,6 @@ DEFAULT_CHUNKSIZE = 25000
 
 
 class IndexUpdater:
-
     """
     IndexUpdater takes in a searcher and adds/remove passages from the searcher.
     A checkpoint for passage-encoding must be provided for adding passages.
@@ -126,16 +117,20 @@ class IndexUpdater:
             end = start + doclen
             codes = compressed_embs.codes[start:end]
             partitions, _ = self._build_passage_partitions(codes)
-            ivf, ivf_lengths = self._add_pid_to_ivf(partitions, curr_pid, ivf, ivf_lengths)
+            ivf, ivf_lengths = self._add_pid_to_ivf(
+                partitions, curr_pid, ivf, ivf_lengths
+            )
 
             start = end
             curr_pid += 1
-        
+
         assert start == sum(doclens)
 
         # Replace the current ivf with new_ivf
         self.curr_ivf = torch.tensor(ivf, dtype=self.curr_ivf.dtype)
-        self.curr_ivf_lengths = torch.tensor(ivf_lengths, dtype=self.curr_ivf_lengths.dtype)
+        self.curr_ivf_lengths = torch.tensor(
+            ivf_lengths, dtype=self.curr_ivf_lengths.dtype
+        )
 
         # Update new ivf in searcher
         new_ivf_tensor = StridedTensor(

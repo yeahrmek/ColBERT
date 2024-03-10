@@ -1,8 +1,6 @@
-import os
 import argparse
 from collections import namedtuple
 from datasets import load_dataset
-import tqdm
 
 from colbert import Indexer, Searcher, IndexUpdater
 from colbert.infra import ColBERTConfig, RunConfig, Run
@@ -78,7 +76,6 @@ def main(args):
     )
 
     index_updater = IndexUpdater(config, searcher, checkpoint)
-
 
     # Try removing an invalid passage
     raised = False
