@@ -1,21 +1,18 @@
-import torch
 import random
-import torch.nn as nn
+
 import numpy as np
-
-from transformers import AdamW, get_linear_schedule_with_warmup
+import torch
+import torch.nn as nn
 from colbert.infra import ColBERTConfig
-from colbert.training.rerank_batcher import RerankBatcher
-
-from colbert.utils.amp import MixedPrecisionManager
-from colbert.training.lazy_batcher import LazyBatcher
-from colbert.parameters import DEVICE
-
 from colbert.modeling.colbert import ColBERT
 from colbert.modeling.reranker.electra import ElectraReranker
-
+from colbert.parameters import DEVICE
+from colbert.training.lazy_batcher import LazyBatcher
+from colbert.training.rerank_batcher import RerankBatcher
+from colbert.training.utils import manage_checkpoints, print_progress
+from colbert.utils.amp import MixedPrecisionManager
 from colbert.utils.utils import print_message
-from colbert.training.utils import print_progress, manage_checkpoints
+from transformers import AdamW, get_linear_schedule_with_warmup
 
 
 def train(config: ColBERTConfig, triples, queries=None, collection=None):
