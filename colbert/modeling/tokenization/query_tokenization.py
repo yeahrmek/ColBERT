@@ -1,12 +1,12 @@
 import torch
-
-from colbert.modeling.hf_colbert import class_factory
 from colbert.infra import ColBERTConfig
+from colbert.modeling.hf_colbert import class_factory
+from colbert.modeling.tokenization.common import TokenizerCallMixin
 from colbert.modeling.tokenization.utils import _split_into_batches
 from colbert.parameters import DEVICE
 
 
-class QueryTokenizer:
+class QueryTokenizer(TokenizerCallMixin):
     def __init__(self, config: ColBERTConfig, verbose: int = 3):
         HF_ColBERT = class_factory(config.checkpoint)
         self.tok = HF_ColBERT.raw_tokenizer_from_pretrained(config.checkpoint)
@@ -30,6 +30,10 @@ class QueryTokenizer:
         )
         self.pad_token, self.pad_token_id = self.tok.pad_token, self.tok.pad_token_id
         self.used = False
+        if config.gpus > 1:
+            self.device = DEVICE
+        else:
+            self.device = "cpu"
 
     def tokenize(self, batch_text, add_special_tokens=False):
         assert type(batch_text) in [list, tuple], type(batch_text)
@@ -53,7 +57,9 @@ class QueryTokenizer:
     def encode(self, batch_text, add_special_tokens=False):
         assert type(batch_text) in [list, tuple], type(batch_text)
 
-        ids = self.tok(batch_text, add_special_tokens=False).to(DEVICE)["input_ids"]
+        ids = self.tok(batch_text, add_special_tokens=False).to(self.device)[
+            "input_ids"
+        ]
 
         if not add_special_tokens:
             return ids
@@ -86,7 +92,7 @@ class QueryTokenizer:
         if full_length_search:
             # Tokenize each string in the batch
             un_truncated_ids = self.tok(batch_text, add_special_tokens=False).to(
-                DEVICE
+                self.device
             )["input_ids"]
             # Get the longest length in the batch
             max_length_in_batch = max(len(x) for x in un_truncated_ids)
@@ -102,7 +108,7 @@ class QueryTokenizer:
             truncation=True,
             return_tensors="pt",
             max_length=max_length,
-        ).to(DEVICE)
+        ).to(self.device)
 
         ids, mask = obj["input_ids"], obj["attention_mask"]
 
@@ -119,7 +125,7 @@ class QueryTokenizer:
                 truncation=True,
                 return_tensors="pt",
                 max_length=self.background_maxlen,
-            ).to(DEVICE)
+            ).to(self.device)
 
             ids_2, mask_2 = (
                 obj_2["input_ids"][:, 1:],
