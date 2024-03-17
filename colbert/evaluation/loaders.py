@@ -1,5 +1,6 @@
 from collections import OrderedDict, defaultdict
 
+import jsonlines
 import pandas as pd
 import ujson
 from colbert.evaluation.load_model import load_model
@@ -183,23 +184,36 @@ def load_collection(collection_path):
 
     return collection
 
-    # with open(collection_path) as f:
-    #     for line_idx, line in enumerate(f):
-    #         if line_idx % (1000 * 1000) == 0:
-    #             print(f"{line_idx // 1000 // 1000}M", end=" ", flush=True)
 
-    #         pid, passage, *rest = line.strip("\n\r ").split("\t")
-    #         assert pid == "id" or int(pid) == line_idx, f"pid={pid}, line_idx={line_idx}"
+def load_collection_from_jsonl(collection_path):
+    collection = []
+    with jsonlines.open(collection_path, "r") as jsonl_f:
+        for line in jsonl_f:
+            passage = line["passage"]
+            if "title" in line:
+                passage = f"{passage} | {line['title']}"
+            collection.append(passage)
 
-    #         if len(rest) >= 1:
-    #             title = rest[0]
-    #             passage = title + " | " + passage
+    return collection
 
-    #         collection.append(passage)
 
-    # print()
+# with open(collection_path) as f:
+#     for line_idx, line in enumerate(f):
+#         if line_idx % (1000 * 1000) == 0:
+#             print(f"{line_idx // 1000 // 1000}M", end=" ", flush=True)
 
-    # return collection
+#         pid, passage, *rest = line.strip("\n\r ").split("\t")
+#         assert pid == "id" or int(pid) == line_idx, f"pid={pid}, line_idx={line_idx}"
+
+#         if len(rest) >= 1:
+#             title = rest[0]
+#             passage = title + " | " + passage
+
+#         collection.append(passage)
+
+# print()
+
+# return collection
 
 
 def load_colbert(args, do_print=True):
