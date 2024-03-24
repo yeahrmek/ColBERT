@@ -3,19 +3,21 @@ import random
 import numpy as np
 import torch
 import torch.nn as nn
+import tqdm
 from colbert.infra import ColBERTConfig
 from colbert.modeling.colbert import ColBERT
 from colbert.modeling.reranker.electra import ElectraReranker
 from colbert.parameters import DEVICE
-from colbert.training.lazy_batcher import LazyBatcher
+from colbert.training.lazy_batcher import (LazyBatcher,
+                                           LazyBatcherDistinctPassages)
 from colbert.training.rerank_batcher import RerankBatcher
-from colbert.training.utils import manage_checkpoints, print_progress
+from colbert.training.utils import manage_checkpoints
 from colbert.utils.amp import MixedPrecisionManager
 from colbert.utils.utils import print_message
 from transformers import AdamW, get_linear_schedule_with_warmup
 
 
-def train(config: ColBERTConfig, triples, queries=None, collection=None):
+def train(config: ColBERTConfig, triples, queries=None, collection=None, logger=None):
     config.checkpoint = config.checkpoint or "bert-base-uncased"
 
     if config.rank < 1:
@@ -47,7 +49,11 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
                 config.nranks,
             )
         else:
-            reader = LazyBatcher(
+            if config.drop_duplciate_passages:
+                batch_cls = LazyBatcherDistinctPassages
+            else:
+                batch_cls = LazyBatcher
+            reader = batch_cls(
                 config,
                 triples,
                 queries,
@@ -97,7 +103,7 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
     labels = torch.zeros(config.bsize, dtype=torch.long, device=DEVICE)
 
     train_loss = None
-    train_loss_mu = 0.999
+    train_loss_mu = 0.9
 
     start_batch_idx = 0
 
@@ -107,81 +113,98 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None):
 
     #     reader.skip_to_batch(start_batch_idx, checkpoint['arguments']['bsize'])
 
-    for batch_idx, BatchSteps in zip(range(start_batch_idx, config.maxsteps), reader):
-        if (warmup_bert is not None) and warmup_bert <= batch_idx:
-            set_bert_grad(colbert, True)
-            warmup_bert = None
+    global_step = 0
+    with tqdm.tqdm(zip(range(start_batch_idx, config.maxsteps), reader), total=config.maxsteps) as progress:
+        for batch_idx, BatchSteps in progress:
+            if (warmup_bert is not None) and warmup_bert <= batch_idx:
+                set_bert_grad(colbert, True)
+                warmup_bert = None
 
-        this_batch_loss = 0.0
+            this_batch_loss = 0.0
 
-        for batch in BatchSteps:
-            with amp.context():
-                try:
-                    queries, passages, target_scores = batch
-                    encoding = [queries, passages]
-                except:
-                    encoding, target_scores = batch
-                    encoding = [encoding.to(DEVICE)]
+            for batch in BatchSteps:
+                with amp.context():
+                    try:
+                        queries, passages, target_scores = batch
+                        encoding = [queries, passages]
+                    except:
+                        encoding, target_scores = batch
+                        encoding = [encoding.to(DEVICE)]
 
-                scores = colbert(*encoding)
+                    scores = colbert(*encoding)
 
-                if config.use_ib_negatives:
-                    scores, ib_loss = scores
+                    if config.use_ib_negatives:
+                        scores, ib_loss = scores
 
-                scores = scores.view(-1, config.nway)
+                    scores = scores.view(-1, config.nway)
 
-                if len(target_scores) and not config.ignore_scores:
-                    target_scores = (
-                        torch.tensor(target_scores).view(-1, config.nway).to(DEVICE)
-                    )
-                    target_scores = target_scores * config.distillation_alpha
-                    target_scores = torch.nn.functional.log_softmax(
-                        target_scores, dim=-1
-                    )
+                    if len(target_scores) and not config.ignore_scores:
+                        target_scores = (
+                            torch.tensor(target_scores).view(-1, config.nway).to(DEVICE)
+                        )
+                        target_scores = target_scores * config.distillation_alpha
+                        target_scores = torch.nn.functional.log_softmax(
+                            target_scores, dim=-1
+                        )
 
-                    log_scores = torch.nn.functional.log_softmax(scores, dim=-1)
-                    loss = torch.nn.KLDivLoss(reduction="batchmean", log_target=True)(
-                        log_scores, target_scores
-                    )
-                else:
-                    loss = nn.CrossEntropyLoss()(scores, labels[: scores.size(0)])
+                        log_scores = torch.nn.functional.log_softmax(scores, dim=-1)
+                        loss = torch.nn.KLDivLoss(reduction="batchmean", log_target=True)(
+                            log_scores, target_scores
+                        )
+                    else:
+                        loss = nn.CrossEntropyLoss()(scores, labels[: scores.size(0)])
 
-                if config.use_ib_negatives:
-                    if config.rank < 1:
-                        print("\t\t\t\t", loss.item(), ib_loss.item())
+                    if config.use_ib_negatives:
+                        if (
+                            config.rank < 1
+                            and config.log_every is not None
+                            and (batch_idx + 1) % config.log_every == 0
+                        ):
+                            print("\t\t\t\t", loss.item(), ib_loss.item())
 
-                    loss += ib_loss
+                        loss += ib_loss
+                        global_step += 1
+                        logger.log_metrics(
+                            {
+                                "micro_step/loss": loss.item(),
+                                "micro_step/ib_loss": ib_loss.item()},
+                            step=global_step
+                        )
 
-                loss = loss / config.accumsteps
+                    loss = loss / config.accumsteps
+                    # print(f"{batch_idx} loss: {loss.item()}, ib_loss: {ib_loss.item()}")
+                    # print()
+
+                amp.backward(loss)
+
+                this_batch_loss += loss.item()
+
+                logger.log_metrics({"batch/loss": loss.item()}, step=batch_idx)
+
+            train_loss = this_batch_loss if train_loss is None else train_loss
+            train_loss = train_loss_mu * train_loss + (1 - train_loss_mu) * this_batch_loss
+
+            amp.step(colbert, optimizer, scheduler)
+            progress.set_postfix(train_loss=train_loss)
 
             if config.rank < 1:
-                print_progress(scores)
+                if config.log_every is not None and (batch_idx + 1) % config.log_every == 0:
+                    print_message(batch_idx, train_loss)
+                manage_checkpoints(config, colbert, optimizer, batch_idx + 1, savepath=None)
 
-            amp.backward(loss)
-
-            this_batch_loss += loss.item()
-
-        train_loss = this_batch_loss if train_loss is None else train_loss
-        train_loss = train_loss_mu * train_loss + (1 - train_loss_mu) * this_batch_loss
-
-        amp.step(colbert, optimizer, scheduler)
 
         if config.rank < 1:
-            print_message(batch_idx, train_loss)
-            manage_checkpoints(config, colbert, optimizer, batch_idx + 1, savepath=None)
+            print_message("#> Done with all triples!")
+            ckpt_path = manage_checkpoints(
+                config,
+                colbert,
+                optimizer,
+                batch_idx + 1,
+                savepath=None,
+                consumed_all_triples=True,
+            )
 
-    if config.rank < 1:
-        print_message("#> Done with all triples!")
-        ckpt_path = manage_checkpoints(
-            config,
-            colbert,
-            optimizer,
-            batch_idx + 1,
-            savepath=None,
-            consumed_all_triples=True,
-        )
-
-        return ckpt_path  # TODO: This should validate and return the best checkpoint, not just the last one.
+            return ckpt_path  # TODO: This should validate and return the best checkpoint, not just the last one.
 
 
 def set_bert_grad(colbert, value):

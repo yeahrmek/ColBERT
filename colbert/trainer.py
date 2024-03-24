@@ -1,17 +1,17 @@
-from colbert.infra.run import Run
-from colbert.infra.launcher import Launcher
 from colbert.infra.config import ColBERTConfig
-
+from colbert.infra.launcher import Launcher
+from colbert.infra.run import Run
 from colbert.training.training import train
 
 
 class Trainer:
-    def __init__(self, triples, queries, collection, config=None):
+    def __init__(self, triples, queries, collection, config=None, logger=None):
         self.config = ColBERTConfig.from_existing(config, Run().config)
 
         self.triples = triples
         self.queries = queries
         self.collection = collection
+        self.logger = logger
 
     def configure(self, **kw_args):
         self.config.configure(**kw_args)
@@ -31,7 +31,7 @@ class Trainer:
         launcher = Launcher(train)
 
         self._best_checkpoint_path = launcher.launch(
-            self.config, self.triples, self.queries, self.collection
+            self.config, self.triples, self.queries, self.collection, self.logger
         )
 
     def best_checkpoint_path(self):
