@@ -8,10 +8,9 @@ from colbert.infra import ColBERTConfig
 from colbert.modeling.colbert import ColBERT
 from colbert.modeling.reranker.electra import ElectraReranker
 from colbert.parameters import DEVICE
-from colbert.training.lazy_batcher import (LazyBatcher,
-                                           LazyBatcherDistinctPassages)
+from colbert.training.lazy_batcher import LazyBatcher, LazyBatcherDistinctPassages
 from colbert.training.rerank_batcher import RerankBatcher
-from colbert.training.utils import manage_checkpoints
+from colbert.training.utils import manage_checkpoints, print_progress
 from colbert.utils.amp import MixedPrecisionManager
 from colbert.utils.utils import print_message
 from transformers import AdamW, get_linear_schedule_with_warmup
@@ -114,7 +113,9 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None, logger=
     #     reader.skip_to_batch(start_batch_idx, checkpoint['arguments']['bsize'])
 
     global_step = 0
-    with tqdm.tqdm(zip(range(start_batch_idx, config.maxsteps), reader), total=config.maxsteps) as progress:
+    with tqdm.tqdm(
+        zip(range(start_batch_idx, config.maxsteps), reader), total=config.maxsteps
+    ) as progress:
         for batch_idx, BatchSteps in progress:
             if (warmup_bert is not None) and warmup_bert <= batch_idx:
                 set_bert_grad(colbert, True)
@@ -148,9 +149,9 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None, logger=
                         )
 
                         log_scores = torch.nn.functional.log_softmax(scores, dim=-1)
-                        loss = torch.nn.KLDivLoss(reduction="batchmean", log_target=True)(
-                            log_scores, target_scores
-                        )
+                        loss = torch.nn.KLDivLoss(
+                            reduction="batchmean", log_target=True
+                        )(log_scores, target_scores)
                     else:
                         loss = nn.CrossEntropyLoss()(scores, labels[: scores.size(0)])
 
@@ -160,38 +161,43 @@ def train(config: ColBERTConfig, triples, queries=None, collection=None, logger=
                             and config.log_every is not None
                             and (batch_idx + 1) % config.log_every == 0
                         ):
-                            print("\t\t\t\t", loss.item(), ib_loss.item())
+                            print_progress(scores)
 
                         loss += ib_loss
                         global_step += 1
                         logger.log_metrics(
                             {
                                 "micro_step/loss": loss.item(),
-                                "micro_step/ib_loss": ib_loss.item()},
-                            step=global_step
+                                "micro_step/ib_loss": ib_loss.item(),
+                            },
+                            step=global_step,
                         )
 
                     loss = loss / config.accumsteps
-                    # print(f"{batch_idx} loss: {loss.item()}, ib_loss: {ib_loss.item()}")
-                    # print()
 
                 amp.backward(loss)
 
                 this_batch_loss += loss.item()
 
-                logger.log_metrics({"batch/loss": loss.item()}, step=batch_idx)
+                log(logger, loss, scores, batch_idx)
 
             train_loss = this_batch_loss if train_loss is None else train_loss
-            train_loss = train_loss_mu * train_loss + (1 - train_loss_mu) * this_batch_loss
+            train_loss = (
+                train_loss_mu * train_loss + (1 - train_loss_mu) * this_batch_loss
+            )
 
             amp.step(colbert, optimizer, scheduler)
             progress.set_postfix(train_loss=train_loss)
 
             if config.rank < 1:
-                if config.log_every is not None and (batch_idx + 1) % config.log_every == 0:
+                if (
+                    config.log_every is not None
+                    and (batch_idx + 1) % config.log_every == 0
+                ):
                     print_message(batch_idx, train_loss)
-                manage_checkpoints(config, colbert, optimizer, batch_idx + 1, savepath=None)
-
+                manage_checkpoints(
+                    config, colbert, optimizer, batch_idx + 1, savepath=None
+                )
 
         if config.rank < 1:
             print_message("#> Done with all triples!")
@@ -214,3 +220,17 @@ def set_bert_grad(colbert, value):
             p.requires_grad = value
     except AttributeError:
         set_bert_grad(colbert.module, value)
+
+
+def log(logger, loss, scores, batch_idx):
+    positive_avg = scores[:, 0].mean().item()
+    negative_avg = scores[:, 1].mean().item()
+
+    metrics = {
+        "batch/loss": loss.item(),
+        "batch/positive_score": positive_avg,
+        "batch/negative_score": negative_avg,
+        "batch/score_diff": positive_avg - negative_avg,
+    }
+
+    logger.log_metrics(metrics, step=batch_idx)

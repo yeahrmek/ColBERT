@@ -1,8 +1,8 @@
-import ujson
 import dataclasses
-
-from typing import Any
 from dataclasses import dataclass, fields
+from typing import Any
+
+import ujson
 
 
 @dataclass
@@ -28,16 +28,17 @@ class CoreConfig:
         for field in fields(self):
             field_val = getattr(self, field.name)
 
-            if isinstance(field_val, DefaultVal) or field_val is None:
-                setattr(self, field.name, field.default.val)
+            # if isinstance(field_val, DefaultVal) or field_val is None:
+            #     setattr(self, field.name, field.default.val)
 
             if not isinstance(field_val, DefaultVal):
                 self.assigned[field.name] = True
 
     def assign_defaults(self):
-        for field in fields(self):
-            setattr(self, field.name, field.default.val)
-            self.assigned[field.name] = True
+        pass
+        # for field in fields(self):
+        #     setattr(self, field.name, field.default.val)
+        #     self.assigned[field.name] = True
 
     def configure(self, ignore_unrecognized=True, **kw_args):
         ignored = set()

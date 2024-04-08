@@ -1,13 +1,12 @@
-from colbert.infra.config.config import ColBERTConfig
-from colbert.search.strided_tensor import StridedTensor
-from colbert.utils.utils import print_message, flatten
-from colbert.modeling.base_colbert import BaseColBERT
-
-import torch
-import string
-
 import os
 import pathlib
+import string
+
+import torch
+from colbert.infra.config.config import ColBERTConfig
+from colbert.modeling.base_colbert import BaseColBERT
+from colbert.search.strided_tensor import StridedTensor
+from colbert.utils.utils import flatten, print_message
 from torch.utils.cpp_extension import load
 
 
@@ -33,6 +32,15 @@ class ColBERT(BaseColBERT):
             }
         self.pad_token = self.raw_tokenizer.pad_token_id
 
+        if colbert_config.query_token not in self.raw_tokenizer.vocab:
+            self.raw_tokenizer.add_special_tokens(
+                {"additional_special_tokens": [colbert_config.query_token]}, replace_additional_special_tokens=False
+            )
+        if colbert_config.doc_token not in self.raw_tokenizer.vocab:
+            self.raw_tokenizer.add_special_tokens(
+                {"additional_special_tokens": [colbert_config.doc_token]}, replace_additional_special_tokens=False
+            )
+
     @classmethod
     def try_load_torch_extensions(cls, use_gpu):
         if hasattr(cls, "loaded_extensions") or use_gpu:
@@ -44,13 +52,10 @@ class ColBERT(BaseColBERT):
         segmented_maxsim_cpp = load(
             name="segmented_maxsim_cpp",
             sources=[
-                os.path.join(
-                    pathlib.Path(__file__).parent.resolve(), "segmented_maxsim.cpp"
-                ),
+                os.path.join(pathlib.Path(__file__).parent.resolve(), "segmented_maxsim.cpp"),
             ],
             extra_cflags=["-O3"],
-            verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False")
-            == "True",
+            verbose=os.getenv("COLBERT_LOAD_TORCH_EXTENSION_VERBOSE", "False") == "True",
         )
         cls.segmented_maxsim = segmented_maxsim_cpp.segmented_maxsim_cpp
 
@@ -72,69 +77,45 @@ class ColBERT(BaseColBERT):
 
     def compute_ib_loss(self, Q, D, D_mask):
         # TODO: Organize the code below! Quite messy.
-        scores = (D.unsqueeze(0) @ Q.permute(0, 2, 1).unsqueeze(1)).flatten(
-            0, 1
-        )  # query-major unsqueeze
+        scores = (D.unsqueeze(0) @ Q.permute(0, 2, 1).unsqueeze(1)).flatten(0, 1)  # query-major unsqueeze
 
-        scores = colbert_score_reduce(
-            scores, D_mask.repeat(Q.size(0), 1, 1), self.colbert_config
-        )
+        scores = colbert_score_reduce(scores, D_mask.repeat(Q.size(0), 1, 1), self.colbert_config)
 
         nway = self.colbert_config.nway
         all_except_self_negatives = [
             list(range(qidx * D.size(0), qidx * D.size(0) + nway * qidx + 1))
-            + list(
-                range(
-                    qidx * D.size(0) + nway * (qidx + 1), qidx * D.size(0) + D.size(0)
-                )
-            )
+            + list(range(qidx * D.size(0) + nway * (qidx + 1), qidx * D.size(0) + D.size(0)))
             for qidx in range(Q.size(0))
         ]
 
         scores = scores[flatten(all_except_self_negatives)]
         scores = scores.view(Q.size(0), -1)  # D.size(0) - self.colbert_config.nway + 1)
 
-        labels = torch.arange(0, Q.size(0), device=scores.device) * (
-            self.colbert_config.nway
-        )
+        labels = torch.arange(0, Q.size(0), device=scores.device) * (self.colbert_config.nway)
 
         return torch.nn.CrossEntropyLoss()(scores, labels)
 
     def query(self, input_ids, attention_mask):
-        input_ids, attention_mask = input_ids.to(self.device), attention_mask.to(
-            self.device
-        )
+        input_ids, attention_mask = input_ids.to(self.device), attention_mask.to(self.device)
         Q = self.bert(input_ids, attention_mask=attention_mask)[0]
         Q = self.linear(Q)
 
-        mask = (
-            torch.tensor(self.mask(input_ids, skiplist=[]), device=self.device)
-            .unsqueeze(2)
-            .float()
-        )
+        mask = torch.tensor(self.mask(input_ids, skiplist=[]), device=self.device).unsqueeze(2).float()
         Q = Q * mask
 
         return torch.nn.functional.normalize(Q, p=2, dim=2)
 
-    def doc(self, input_ids, attention_mask, keep_dims=True):
+    def doc(self, input_ids, attention_mask, keep_dims=True, to_half=False):
         assert keep_dims in [True, False, "return_mask"]
 
-        input_ids, attention_mask = input_ids.to(self.device), attention_mask.to(
-            self.device
-        )
+        input_ids, attention_mask = input_ids.to(self.device), attention_mask.to(self.device)
         D = self.bert(input_ids, attention_mask=attention_mask)[0]
         D = self.linear(D)
-        mask = (
-            torch.tensor(
-                self.mask(input_ids, skiplist=self.skiplist), device=self.device
-            )
-            .unsqueeze(2)
-            .float()
-        )
+        mask = torch.tensor(self.mask(input_ids, skiplist=self.skiplist), device=self.device).unsqueeze(2).float()
         D = D * mask
 
         D = torch.nn.functional.normalize(D, p=2, dim=2)
-        if self.use_gpu:
+        if self.use_gpu and to_half:
             D = D.half()
 
         if keep_dims is False:
@@ -150,18 +131,11 @@ class ColBERT(BaseColBERT):
         # assert self.colbert_config.similarity == 'cosine'
         if self.colbert_config.similarity == "l2":
             assert self.colbert_config.interaction == "colbert"
-            return (
-                (-1.0 * ((Q.unsqueeze(2) - D_padded.unsqueeze(1)) ** 2).sum(-1))
-                .max(-1)
-                .values.sum(-1)
-            )
+            return (-1.0 * ((Q.unsqueeze(2) - D_padded.unsqueeze(1)) ** 2).sum(-1)).max(-1).values.sum(-1)
         return colbert_score(Q, D_padded, D_mask, config=self.colbert_config)
 
     def mask(self, input_ids, skiplist):
-        mask = [
-            [(x not in skiplist) and (x != self.pad_token) for x in d]
-            for d in input_ids.cpu().tolist()
-        ]
+        mask = [[(x not in skiplist) and (x != self.pad_token) for x in d] for d in input_ids.cpu().tolist()]
         return mask
 
 
@@ -235,9 +209,7 @@ def colbert_score_packed(Q, D_packed, D_lengths, config=ColBERTConfig()):
     scores = D_packed @ Q.to(dtype=D_packed.dtype).T
 
     if use_gpu or config.interaction == "flipr":
-        scores_padded, scores_mask = StridedTensor(
-            scores, D_lengths, use_gpu=use_gpu
-        ).as_padded_tensor()
+        scores_padded, scores_mask = StridedTensor(scores, D_lengths, use_gpu=use_gpu).as_padded_tensor()
 
         return colbert_score_reduce(scores_padded, scores_mask, config)
     else:

@@ -71,6 +71,7 @@ colbert/modeling/reranker/__init__.py
 colbert/modeling/reranker/electra.py
 colbert/modeling/reranker/tokenizer.py
 colbert/modeling/tokenization/__init__.py
+colbert/modeling/tokenization/common.py
 colbert/modeling/tokenization/doc_tokenization.py
 colbert/modeling/tokenization/query_tokenization.py
 colbert/modeling/tokenization/utils.py

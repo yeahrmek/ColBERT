@@ -1,5 +1,4 @@
 import torch
-
 from colbert.infra.run import Run
 from colbert.utils.utils import batch
 

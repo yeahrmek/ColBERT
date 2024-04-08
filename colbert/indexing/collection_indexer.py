@@ -88,15 +88,11 @@ class CollectionIndexer:
                     Run().print_main(f"#> Loaded plan from {self.plan_path}:")
                     Run().print_main(f"#> num_chunks = {self.num_chunks}")
                     Run().print_main(f"#> num_partitions = {self.num_chunks}")
-                    Run().print_main(
-                        f"#> num_embeddings_est = {self.num_embeddings_est}"
-                    )
+                    Run().print_main(f"#> num_embeddings_est = {self.num_embeddings_est}")
                     Run().print_main(f"#> avg_doclen_est = {self.avg_doclen_est}")
                 return
 
-        self.num_chunks = int(
-            np.ceil(len(self.collection) / self.collection.get_chunksize())
-        )
+        self.num_chunks = int(np.ceil(len(self.collection) / self.collection.get_chunksize()))
 
         # Saves sampled passages and embeddings for training k-means centroids later
         sampled_pids = self._sample_pids()
@@ -105,15 +101,11 @@ class CollectionIndexer:
         # Select the number of partitions
         num_passages = len(self.collection)
         self.num_embeddings_est = num_passages * avg_doclen_est
-        self.num_partitions = int(
-            2 ** np.floor(np.log2(16 * np.sqrt(self.num_embeddings_est)))
-        )
+        self.num_partitions = int(2 ** np.floor(np.log2(16 * np.sqrt(self.num_embeddings_est))))
 
         if self.verbose > 0:
             Run().print_main(f"Creating {self.num_partitions:,} partitions.")
-            Run().print_main(
-                f"*Estimated* {int(self.num_embeddings_est):,} embeddings."
-            )
+            Run().print_main(f"*Estimated* {int(self.num_embeddings_est):,} embeddings.")
 
         self._save_plan()
 
@@ -132,9 +124,7 @@ class CollectionIndexer:
 
         sampled_pids = random.sample(range(num_passages), sampled_pids)
         if self.verbose > 1:
-            Run().print_main(
-                f"# of sampled PIDs = {len(sampled_pids)} \t sampled_pids[:3] = {sampled_pids[:3]}"
-            )
+            Run().print_main(f"# of sampled PIDs = {len(sampled_pids)} \t sampled_pids[:3] = {sampled_pids[:3]}")
 
         return set(sampled_pids)
 
@@ -184,9 +174,7 @@ class CollectionIndexer:
         avg_doclen_est = avg_doclen_est.item() / nonzero_ranks.item()
         self.avg_doclen_est = avg_doclen_est
 
-        Run().print(
-            f"avg_doclen_est = {avg_doclen_est} \t len(local_sample) = {len(local_sample):,}"
-        )
+        Run().print(f"avg_doclen_est = {avg_doclen_est} \t len(local_sample) = {len(local_sample):,}")
 
         torch.save(
             local_sample_embs.half(),
@@ -248,9 +236,7 @@ class CollectionIndexer:
         print_memory_stats(f"RANK:{self.rank}")
         del sample
 
-        bucket_cutoffs, bucket_weights, avg_residual = self._compute_avg_residual(
-            centroids, heldout
-        )
+        bucket_cutoffs, bucket_weights, avg_residual = self._compute_avg_residual(centroids, heldout)
 
         if self.verbose > 1:
             print_message(f"avg_residual = {avg_residual}")
@@ -292,9 +278,7 @@ class CollectionIndexer:
 
         heldout_fraction = 0.05
         heldout_size = int(min(heldout_fraction * sample.size(0), 50_000))
-        sample, sample_heldout = sample.split(
-            [sample.size(0) - heldout_size, heldout_size], dim=0
-        )
+        sample, sample_heldout = sample.split([sample.size(0) - heldout_size, heldout_size], dim=0)
 
         print_memory_stats(f"***4*** \t RANK:{self.rank}")
 
@@ -335,13 +319,9 @@ class CollectionIndexer:
         return centroids
 
     def _compute_avg_residual(self, centroids, heldout):
-        compressor = ResidualCodec(
-            config=self.config, centroids=centroids, avg_residual=None
-        )
+        compressor = ResidualCodec(config=self.config, centroids=centroids, avg_residual=None)
 
-        heldout_reconstruct = compressor.compress_into_codes(
-            heldout, out_device="cuda" if self.use_gpu else "cpu"
-        )
+        heldout_reconstruct = compressor.compress_into_codes(heldout, out_device="cuda" if self.use_gpu else "cpu")
         heldout_reconstruct = compressor.lookup_centroids(
             heldout_reconstruct, out_device="cuda" if self.use_gpu else "cpu"
         )
@@ -354,12 +334,8 @@ class CollectionIndexer:
         print([round(x, 3) for x in avg_residual.squeeze().tolist()])
 
         num_options = 2**self.config.nbits
-        quantiles = torch.arange(0, num_options, device=heldout_avg_residual.device) * (
-            1 / num_options
-        )
-        bucket_cutoffs_quantiles, bucket_weights_quantiles = quantiles[
-            1:
-        ], quantiles + (0.5 / num_options)
+        quantiles = torch.arange(0, num_options, device=heldout_avg_residual.device) * (1 / num_options)
+        bucket_cutoffs_quantiles, bucket_weights_quantiles = quantiles[1:], quantiles + (0.5 / num_options)
 
         bucket_cutoffs = heldout_avg_residual.float().quantile(bucket_cutoffs_quantiles)
         bucket_weights = heldout_avg_residual.float().quantile(bucket_weights_quantiles)
@@ -368,9 +344,7 @@ class CollectionIndexer:
             print_message(
                 f"#> Got bucket_cutoffs_quantiles = {bucket_cutoffs_quantiles} and bucket_weights_quantiles = {bucket_weights_quantiles}"
             )
-            print_message(
-                f"#> Got bucket_cutoffs = {bucket_cutoffs} and bucket_weights = {bucket_weights}"
-            )
+            print_message(f"#> Got bucket_cutoffs = {bucket_cutoffs} and bucket_weights = {bucket_weights}")
 
         return bucket_cutoffs, bucket_weights, avg_residual.mean()
 
@@ -392,14 +366,10 @@ class CollectionIndexer:
         """
         with self.saver.thread():
             batches = self.collection.enumerate_batches(rank=self.rank)
-            for chunk_idx, offset, passages in tqdm.tqdm(
-                batches, disable=self.rank > 0
-            ):
+            for chunk_idx, offset, passages in tqdm.tqdm(batches, disable=self.rank > 0):
                 if self.config.resume and self.saver.check_chunk_exists(chunk_idx):
                     if self.verbose > 2:
-                        Run().print_main(
-                            f"#> Found chunk {chunk_idx} in the index already, skipping encoding..."
-                        )
+                        Run().print_main(f"#> Found chunk {chunk_idx} in the index already, skipping encoding...")
                     continue
                 # Encode passages into embeddings with the checkpoint model
                 embs, doclens = self.encoder.encode_passages(passages)
@@ -414,9 +384,7 @@ class CollectionIndexer:
                         f"and {embs.size(0):,} embeddings. From #{offset:,} onward."
                     )
 
-                self.saver.save_chunk(
-                    chunk_idx, offset, embs, doclens
-                )  # offset = first passage index in chunk
+                self.saver.save_chunk(chunk_idx, offset, embs, doclens)  # offset = first passage index in chunk
                 del embs, doclens
 
     def finalize(self):
@@ -460,9 +428,7 @@ class CollectionIndexer:
         self.embedding_offsets = []
 
         for chunk_idx in range(self.num_chunks):
-            metadata_path = os.path.join(
-                self.config.index_path_, f"{chunk_idx}.metadata.json"
-            )
+            metadata_path = os.path.join(self.config.index_path_, f"{chunk_idx}.metadata.json")
 
             with open(metadata_path) as f:
                 chunk_metadata = ujson.load(f)
@@ -506,9 +472,7 @@ class CollectionIndexer:
 
         for chunk_idx in tqdm.tqdm(range(self.num_chunks)):
             offset = self.embedding_offsets[chunk_idx]
-            chunk_codes = ResidualCodec.Embeddings.load_codes(
-                self.config.index_path_, chunk_idx
-            )
+            chunk_codes = ResidualCodec.Embeddings.load_codes(self.config.index_path_, chunk_idx)
 
             codes[offset : offset + chunk_codes.size(0)] = chunk_codes
 
@@ -555,13 +519,9 @@ class CollectionIndexer:
             f.write(ujson.dumps(d, indent=4) + "\n")
 
 
-def compute_faiss_kmeans(
-    dim, num_partitions, kmeans_niters, shared_lists, return_value_queue=None
-):
+def compute_faiss_kmeans(dim, num_partitions, kmeans_niters, shared_lists, return_value_queue=None):
     use_gpu = torch.cuda.is_available()
-    kmeans = faiss.Kmeans(
-        dim, num_partitions, niter=kmeans_niters, gpu=use_gpu, verbose=True, seed=123
-    )
+    kmeans = faiss.Kmeans(dim, num_partitions, niter=kmeans_niters, gpu=use_gpu, verbose=True, seed=123)
 
     sample = shared_lists[0][0]
     sample = sample.float().numpy()

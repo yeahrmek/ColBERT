@@ -66,6 +66,7 @@ class LazyBatcher:
 
         assert len(all_scores) in [0, len(all_passages)], len(all_scores)
 
+        print(all_queries[0])
         return self.collate(all_queries, all_passages, all_scores)
 
     def collate(self, queries, passages, scores):

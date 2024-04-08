@@ -1,19 +1,15 @@
 import os
-import torch
-
-from tqdm import tqdm
 from typing import Union
 
+import torch
 from colbert.data import Collection, Queries, Ranking
-
-from colbert.modeling.checkpoint import Checkpoint
-from colbert.search.index_storage import IndexScorer
-
-from colbert.infra.provenance import Provenance
-from colbert.infra.run import Run
 from colbert.infra.config import ColBERTConfig
 from colbert.infra.launcher import print_memory_stats
-
+from colbert.infra.provenance import Provenance
+from colbert.infra.run import Run
+from colbert.modeling.checkpoint import Checkpoint
+from colbert.search.index_storage import IndexScorer
+from tqdm import tqdm
 
 TextQueries = Union[str, "list[str]", "dict[int, str]", Queries]
 

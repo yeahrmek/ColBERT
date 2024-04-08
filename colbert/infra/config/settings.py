@@ -16,22 +16,22 @@ class RunSettings:
     so these aren't soft defaults in that specific context.
     """
 
-    overwrite: bool = DefaultVal(False)
+    overwrite: bool = False
 
-    root: str = DefaultVal(os.path.join(os.getcwd(), "experiments"))
-    experiment: str = DefaultVal("default")
+    root: str = os.path.join(os.getcwd(), "experiments")
+    experiment: str = "default"
 
-    index_root: str = DefaultVal(None)
-    name: str = DefaultVal(timestamp(daydir=True))
+    index_root: str = None
+    name: str = timestamp(daydir=True)
 
-    rank: int = DefaultVal(0)
-    nranks: int = DefaultVal(1)
-    amp: bool = DefaultVal(True)
+    rank: int = 0
+    nranks: int = 1
+    amp: bool = True
 
     total_visible_gpus = torch.cuda.device_count()
-    gpus: int = DefaultVal(total_visible_gpus)
+    gpus: int = total_visible_gpus
 
-    avoid_fork_if_possible: bool = DefaultVal(False)
+    avoid_fork_if_possible: bool = False
 
     @property
     def gpus_(self):
@@ -46,9 +46,7 @@ class RunSettings:
         value = list(map(int, value))
         value = sorted(list(set(value)))
 
-        assert all(
-            device_idx in range(0, self.total_visible_gpus) for device_idx in value
-        ), value
+        assert all(device_idx in range(0, self.total_visible_gpus) for device_idx in value), value
 
         return value
 
@@ -93,86 +91,86 @@ class RunSettings:
 
 @dataclass
 class TokenizerSettings:
-    query_token_id: str = DefaultVal("[unused0]")
-    doc_token_id: str = DefaultVal("[unused1]")
-    query_token: str = DefaultVal("[Q]")
-    doc_token: str = DefaultVal("[D]")
+    query_token_id: str = "[unused0]"
+    doc_token_id: str = "[unused1]"
+    query_token: str = "[Q]"
+    doc_token: str = "[D]"
 
 
 @dataclass
 class ResourceSettings:
-    checkpoint: str = DefaultVal(None)
-    triples: str = DefaultVal(None)
-    collection: str = DefaultVal(None)
-    queries: str = DefaultVal(None)
-    index_name: str = DefaultVal(None)
+    checkpoint: str = None
+    triples: str = None
+    collection: str = None
+    queries: str = None
+    index_name: str = None
 
 
 @dataclass
 class DocSettings:
-    dim: int = DefaultVal(128)
-    doc_maxlen: int = DefaultVal(220)
-    mask_punctuation: bool = DefaultVal(True)
+    dim: int = 128
+    doc_maxlen: int = 220
+    mask_punctuation: bool = True
 
 
 @dataclass
 class QuerySettings:
-    query_maxlen: int = DefaultVal(32)
-    attend_to_mask_tokens: bool = DefaultVal(False)
-    interaction: str = DefaultVal("colbert")
+    query_maxlen: int = 32
+    attend_to_mask_tokens: bool = False
+    interaction: str = "colbert"
 
 
 @dataclass
 class TrainingSettings:
-    similarity: str = DefaultVal("cosine")
+    similarity: str = "cosine"
 
-    bsize: int = DefaultVal(32)
+    bsize: int = 32
 
-    accumsteps: int = DefaultVal(1)
+    accumsteps: int = 1
 
-    lr: float = DefaultVal(3e-06)
+    lr: float = 3e-06
 
-    maxsteps: int = DefaultVal(500_000)
+    maxsteps: int = 500_000
 
-    save_every: int = DefaultVal(None)
+    save_every: int = None
 
-    log_every: Optional[int] = DefaultVal(None)
+    log_every: Optional[int] = None
 
-    resume: bool = DefaultVal(False)
+    resume: bool = False
 
     ## NEW:
-    warmup: int = DefaultVal(None)
+    warmup: int = None
 
-    warmup_bert: int = DefaultVal(None)
+    warmup_bert: int = None
 
-    relu: bool = DefaultVal(False)
+    relu: bool = False
 
-    nway: int = DefaultVal(2)
+    nway: int = 2
 
-    use_ib_negatives: bool = DefaultVal(False)
+    use_ib_negatives: bool = False
 
-    drop_duplciate_passages: bool = DefaultVal(False)
+    drop_duplciate_passages: bool = False
 
-    reranker: bool = DefaultVal(False)
+    reranker: bool = False
 
-    distillation_alpha: float = DefaultVal(1.0)
+    distillation_alpha: float = 1.0
 
-    ignore_scores: bool = DefaultVal(False)
+    ignore_scores: bool = False
 
-    model_name: str = DefaultVal(None)  # DefaultVal('bert-base-uncased')
+    model_name: str = None  # DefaultVal('bert-base-uncased'
 
 
 @dataclass
 class IndexingSettings:
-    index_path: str = DefaultVal(None)
+    index_path: str = None
 
-    index_bsize: int = DefaultVal(64)
+    index_bsize: int = 64
 
-    nbits: int = DefaultVal(1)
+    nbits: int = 1
 
-    kmeans_niters: int = DefaultVal(4)
+    kmeans_niters: int = 4
 
-    resume: bool = DefaultVal(False)
+    resume: bool = False
 
     @property
     def index_path_(self):
@@ -181,7 +179,7 @@ class IndexingSettings:
 
 @dataclass
 class SearchSettings:
-    ncells: int = DefaultVal(None)
-    centroid_score_threshold: float = DefaultVal(None)
-    ndocs: int = DefaultVal(None)
-    load_index_with_mmap: bool = DefaultVal(False)
+    ncells: int = None
+    centroid_score_threshold: float = None
+    ndocs: int = None
+    load_index_with_mmap: bool = False

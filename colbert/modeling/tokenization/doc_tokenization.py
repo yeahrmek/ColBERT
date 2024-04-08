@@ -15,13 +15,24 @@ class DocTokenizer(TokenizerCallMixin):
         self.config = config
         self.doc_maxlen = config.doc_maxlen
 
+        if config.query_token not in self.tok.vocab:
+            self.tok.add_special_tokens(
+                {"additional_special_tokens": [config.query_token]}, replace_additional_special_tokens=False
+            )
+        if config.doc_token not in self.tok.vocab:
+            self.tok.add_special_tokens(
+                {"additional_special_tokens": [config.doc_token]}, replace_additional_special_tokens=False
+            )
+
         self.D_marker_token, self.D_marker_token_id = (
             self.config.doc_token,
-            self.tok.convert_tokens_to_ids(self.config.doc_token_id),
+            self.tok.convert_tokens_to_ids(self.config.doc_token),
         )
+        config.doc_token_id = self.D_marker_token_id
+
         self.cls_token, self.cls_token_id = self.tok.cls_token, self.tok.cls_token_id
         self.sep_token, self.sep_token_id = self.tok.sep_token, self.tok.sep_token_id
-        if config.gpus > 1:
+        if config.gpus > 0:
             self.device = DEVICE
         else:
             self.device = "cpu"
@@ -29,10 +40,7 @@ class DocTokenizer(TokenizerCallMixin):
     def tokenize(self, batch_text, add_special_tokens=False):
         assert type(batch_text) in [list, tuple], type(batch_text)
 
-        tokens = [
-            self.tok.tokenize(x, add_special_tokens=False).to(self.device)
-            for x in batch_text
-        ]
+        tokens = [self.tok.tokenize(x, add_special_tokens=False).to(self.device) for x in batch_text]
 
         if not add_special_tokens:
             return tokens
@@ -45,16 +53,12 @@ class DocTokenizer(TokenizerCallMixin):
     def encode(self, batch_text, add_special_tokens=False):
         assert type(batch_text) in [list, tuple], type(batch_text)
 
-        ids = self.tok(batch_text, add_special_tokens=False).to(self.device)[
-            "input_ids"
-        ]
+        ids = self.tok(batch_text, add_special_tokens=False).to(self.device)["input_ids"]
 
         if not add_special_tokens:
             return ids
 
-        prefix, suffix = [self.cls_token_id, self.D_marker_token_id], [
-            self.sep_token_id
-        ]
+        prefix, suffix = [self.cls_token_id, self.D_marker_token_id], [self.sep_token_id]
         ids = [prefix + lst + suffix for lst in ids]
 
         return ids
