@@ -78,7 +78,7 @@ class Checkpoint(ColBERT):
 
             keep_dims_ = "return_mask" if keep_dims == "flatten" else keep_dims
             batches = [
-                self.doc(input_ids, attention_mask, keep_dims=keep_dims_, to_cpu=to_cpu)
+                self.doc(input_ids, attention_mask, keep_dims=keep_dims_, to_cpu=to_cpu, to_half=True)
                 for input_ids, attention_mask in tqdm(text_batches, disable=not showprogress)
             ]
 
