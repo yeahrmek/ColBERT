@@ -21,6 +21,7 @@ class ColBERT(BaseColBERT):
 
         ColBERT.try_load_torch_extensions(self.use_gpu)
 
+        self.skiplist = []
         if self.colbert_config.mask_punctuation:
             self.skiplist = {
                 w: True
