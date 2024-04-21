@@ -32,11 +32,11 @@ class ColBERT(BaseColBERT):
             }
         self.pad_token = self.raw_tokenizer.pad_token_id
 
-        if colbert_config.query_token not in self.raw_tokenizer.vocab:
+        if colbert_config.query_token not in self.raw_tokenizer.get_vocab():
             self.raw_tokenizer.add_special_tokens(
                 {"additional_special_tokens": [colbert_config.query_token]}, replace_additional_special_tokens=False
             )
-        if colbert_config.doc_token not in self.raw_tokenizer.vocab:
+        if colbert_config.doc_token not in self.raw_tokenizer.get_vocab():
             self.raw_tokenizer.add_special_tokens(
                 {"additional_special_tokens": [colbert_config.doc_token]}, replace_additional_special_tokens=False
             )

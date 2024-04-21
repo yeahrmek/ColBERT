@@ -16,11 +16,11 @@ class QueryTokenizer(TokenizerCallMixin):
         self.query_maxlen = config.query_maxlen
         self.background_maxlen = 512 - self.query_maxlen + 1  # FIXME: Make this configurable
 
-        if config.query_token not in self.tok.vocab:
+        if config.query_token not in self.tok.get_vocab():
             self.tok.add_special_tokens(
                 {"additional_special_tokens": [config.query_token]}, replace_additional_special_tokens=False
             )
-        if config.doc_token not in self.tok.vocab:
+        if config.doc_token not in self.tok.get_vocab():
             self.tok.add_special_tokens(
                 {"additional_special_tokens": [config.doc_token]}, replace_additional_special_tokens=False
             )

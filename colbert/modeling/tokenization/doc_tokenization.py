@@ -3,7 +3,8 @@
 from colbert.infra import ColBERTConfig
 from colbert.modeling.hf_colbert import class_factory
 from colbert.modeling.tokenization.common import TokenizerCallMixin
-from colbert.modeling.tokenization.utils import _sort_by_length, _split_into_batches
+from colbert.modeling.tokenization.utils import (_sort_by_length,
+                                                 _split_into_batches)
 from colbert.parameters import DEVICE
 
 
@@ -15,11 +16,11 @@ class DocTokenizer(TokenizerCallMixin):
         self.config = config
         self.doc_maxlen = config.doc_maxlen
 
-        if config.query_token not in self.tok.vocab:
+        if config.query_token not in self.tok.get_vocab():
             self.tok.add_special_tokens(
                 {"additional_special_tokens": [config.query_token]}, replace_additional_special_tokens=False
             )
-        if config.doc_token not in self.tok.vocab:
+        if config.doc_token not in self.tok.get_vocab():
             self.tok.add_special_tokens(
                 {"additional_special_tokens": [config.doc_token]}, replace_additional_special_tokens=False
             )

@@ -1,12 +1,13 @@
 import torch.nn as nn
 import transformers
-from transformers import BertPreTrainedModel, BertModel, AutoTokenizer, AutoConfig
-from transformers import RobertaModel, RobertaPreTrainedModel
-from transformers import XLMRobertaModel, XLMRobertaConfig
-from transformers import ElectraModel, ElectraPreTrainedModel
-from transformers import DebertaV2Model, DebertaV2PreTrainedModel
-from transformers.dynamic_module_utils import get_class_from_dynamic_module
 from colbert.utils.utils import torch_load_dnn
+from transformers import (AutoConfig, AutoTokenizer, BertModel,
+                          BertPreTrainedModel, DebertaV2Model,
+                          DebertaV2PreTrainedModel, ElectraModel,
+                          ElectraPreTrainedModel, RobertaModel,
+                          RobertaPreTrainedModel, T5EncoderModel,
+                          T5PreTrainedModel, XLMRobertaConfig, XLMRobertaModel)
+from transformers.dynamic_module_utils import get_class_from_dynamic_module
 
 
 class XLMRobertaPreTrainedModel(RobertaPreTrainedModel):
@@ -27,6 +28,9 @@ base_class_mapping = {
     "bert-large-uncased": BertPreTrainedModel,
     "microsoft/mdeberta-v3-base": DebertaV2PreTrainedModel,
     "bert-base-multilingual-uncased": BertPreTrainedModel,
+    "google/byt5-small": T5PreTrainedModel,
+    "google/byt5-base": T5PreTrainedModel,
+    "google/byt5-large": T5PreTrainedModel,
 }
 
 model_object_mapping = {
@@ -38,6 +42,13 @@ model_object_mapping = {
     "bert-large-uncased": BertModel,
     "microsoft/mdeberta-v3-base": DebertaV2Model,
     "bert-base-multilingual-uncased": BertModel,
+    "google/byt5-small": T5EncoderModel,
+    "google/byt5-base": T5EncoderModel,
+    "google/byt5-large": T5EncoderModel,
+}
+
+model_type_mapping = {
+    "t5": "t5encoder"
 }
 
 
@@ -58,6 +69,8 @@ def class_factory(name_or_path):
 
     if getattr(loadedConfig, "auto_map", None) is None:
         model_type = loadedConfig.model_type
+        if model_type in model_type_mapping:
+            model_type = model_type_mapping[model_type]
         pretrained_class = find_class_names(model_type, "pretrainedmodel")
         model_class = find_class_names(model_type, "model")
 
