@@ -19,3 +19,17 @@ class TokenizerCallMixin:
             full_length_search=full_length_search,
         )
         return BatchEncoding({"input_ids": batch[0][0], "attention_mask": batch[0][1]})
+
+
+def add_special_tokens(tokenizer, config):
+    if config.query_token not in tokenizer.get_vocab():
+        tokenizer.add_special_tokens(
+            {"additional_special_tokens": [config.query_token]}, replace_additional_special_tokens=False
+        )
+    if config.doc_token not in tokenizer.get_vocab():
+        tokenizer.add_special_tokens(
+            {"additional_special_tokens": [config.doc_token]}, replace_additional_special_tokens=False
+        )
+
+    if tokenizer.mask_token is None:
+        tokenizer.add_special_tokens({"mask_token": "[MASK]"})

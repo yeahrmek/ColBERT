@@ -1,7 +1,7 @@
 import torch
 from colbert.infra import ColBERTConfig
 from colbert.modeling.hf_colbert import class_factory
-from colbert.modeling.tokenization.common import TokenizerCallMixin
+from colbert.modeling.tokenization.common import TokenizerCallMixin, add_special_tokens
 from colbert.modeling.tokenization.utils import _split_into_batches
 from colbert.parameters import DEVICE
 
@@ -16,14 +16,7 @@ class QueryTokenizer(TokenizerCallMixin):
         self.query_maxlen = config.query_maxlen
         self.background_maxlen = 512 - self.query_maxlen + 1  # FIXME: Make this configurable
 
-        if config.query_token not in self.tok.get_vocab():
-            self.tok.add_special_tokens(
-                {"additional_special_tokens": [config.query_token]}, replace_additional_special_tokens=False
-            )
-        if config.doc_token not in self.tok.get_vocab():
-            self.tok.add_special_tokens(
-                {"additional_special_tokens": [config.doc_token]}, replace_additional_special_tokens=False
-            )
+        add_special_tokens(self.tok, config)
 
         self.Q_marker_token, self.Q_marker_token_id = (
             config.query_token,
