@@ -174,7 +174,7 @@ def load_collection(collection_path):
 
     collection = []
 
-    collection_df = pd.read_csv(collection_path, sep="\t")
+    collection_df = pd.read_csv(collection_path, sep="\t", header=None)
     if len(collection_df.columns) == 3:
         collection = (
             collection_df.iloc[:, 1] + " | " + collection_df.iloc[:, 2]
