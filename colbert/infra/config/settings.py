@@ -1,12 +1,14 @@
 import os
 from dataclasses import dataclass
-from typing import Optional
+from pathlib import Path
+from typing import Optional, Union
 
 import __main__
 import torch
 from colbert.utils.utils import timestamp
+from jsonargparse.typing import Path_dc, Path_fr, path_type
 
-from .core_config import DefaultVal
+Path_dr = path_type("dr")
 
 
 @dataclass
@@ -18,10 +20,10 @@ class RunSettings:
 
     overwrite: bool = False
 
-    root: str = os.path.join(os.getcwd(), "experiments")
+    root: Path_dc = Path.cwd() / "experiments"
     experiment: str = "default"
 
-    index_root: str = None
+    index_root: Path_dc = None
     name: str = timestamp(daydir=True)
 
     rank: int = 0
@@ -32,6 +34,8 @@ class RunSettings:
     gpus: int = total_visible_gpus
 
     avoid_fork_if_possible: bool = False
+
+    debug: bool = False
 
     @property
     def gpus_(self):
@@ -52,7 +56,7 @@ class RunSettings:
 
     @property
     def index_root_(self):
-        return self.index_root or os.path.join(self.root, self.experiment, "indexes/")
+        return self.index_root or os.path.join(self.root, self.experiment, "indexes")
 
     @property
     def script_name_(self):
@@ -99,10 +103,10 @@ class TokenizerSettings:
 
 @dataclass
 class ResourceSettings:
-    checkpoint: str = None
-    triples: str = None
-    collection: str = None
-    queries: str = None
+    checkpoint: Union[str, Path_dr] = None
+    triples: Path_fr = None
+    collection: Path_fr = None
+    queries: Path_fr = None
     index_name: str = None
 
 
@@ -157,12 +161,14 @@ class TrainingSettings:
 
     ignore_scores: bool = False
 
-    model_name: str = None  # DefaultVal('bert-base-uncased'
+    model_name: str = None
+
+    n_log_premises: int = None
 
 
 @dataclass
 class IndexingSettings:
-    index_path: str = None
+    index_path: Path_dc = None
 
     index_bsize: int = 64
 
@@ -183,3 +189,4 @@ class SearchSettings:
     centroid_score_threshold: float = None
     ndocs: int = None
     load_index_with_mmap: bool = False
+    num_retrieved: int = 1

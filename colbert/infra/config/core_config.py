@@ -1,8 +1,10 @@
 import dataclasses
 from dataclasses import dataclass, fields
+from pathlib import Path
 from typing import Any
 
 import ujson
+from jsonargparse.typing import _is_path_type
 
 
 @dataclass
@@ -33,6 +35,9 @@ class CoreConfig:
 
             if not isinstance(field_val, DefaultVal):
                 self.assigned[field.name] = True
+
+            if _is_path_type(field_val, None):
+                setattr(self, field.name, Path(field_val).resolve().as_posix())
 
     def assign_defaults(self):
         pass
