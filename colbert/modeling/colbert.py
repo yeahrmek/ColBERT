@@ -97,7 +97,7 @@ class ColBERT(BaseColBERT):
         return torch.nn.CrossEntropyLoss()(scores, labels)
 
     def query(self, input_ids, attention_mask):
-        input_ids, attention_mask = input_ids.to(self.device), attention_mask.to(self.device)
+        # input_ids, attention_mask = input_ids.to(self.device), attention_mask.to(self.device)
         Q = self.bert(input_ids, attention_mask=attention_mask)[0]
         Q = self.linear(Q)
 
@@ -109,7 +109,7 @@ class ColBERT(BaseColBERT):
     def doc(self, input_ids, attention_mask, keep_dims=True, to_half=False):
         assert keep_dims in [True, False, "return_mask"]
 
-        input_ids, attention_mask = input_ids.to(self.device), attention_mask.to(self.device)
+        # input_ids, attention_mask = input_ids.to(self.device), attention_mask.to(self.device)
         D = self.bert(input_ids, attention_mask=attention_mask)[0]
         D = self.linear(D)
         mask = torch.tensor(self.mask(input_ids, skiplist=self.skiplist), device=self.device).unsqueeze(2).float()

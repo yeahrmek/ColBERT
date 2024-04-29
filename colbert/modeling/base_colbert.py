@@ -1,11 +1,69 @@
 import torch
-
-from colbert.utils.utils import torch_load_dnn
-
-from transformers import AutoTokenizer
-from colbert.modeling.hf_colbert import class_factory
+import transformers
 from colbert.infra.config import ColBERTConfig
+from colbert.modeling.hf_colbert import class_factory, find_class_names, model_object_mapping
 from colbert.parameters import DEVICE
+from colbert.utils.utils import torch_load_dnn
+from transformers import AutoConfig, AutoModel, AutoTokenizer, T5EncoderModel
+
+# class BaseColBERT(torch.nn.Module):
+#     """
+#     Shallow module that wraps the ColBERT parameters, custom configuration, and underlying tokenizer.
+#     This class provides direct instantiation and saving of the model/colbert_config/tokenizer package.
+
+#     Like HF, evaluation mode is the default.
+#     """
+
+#     def __init__(self, name_or_path, colbert_config=None):
+#         super().__init__()
+
+#         self.colbert_config = ColBERTConfig.from_existing(
+#             ColBERTConfig.load_from_checkpoint(name_or_path), colbert_config
+#         )
+#         self.name = self.colbert_config.model_name or name_or_path
+
+#         try:
+#             HF_ColBERT = class_factory(self.name)
+#         except:
+#             self.name = "bert-base-uncased"  # TODO: Double check that this is appropriate here in all cases
+#             HF_ColBERT = class_factory(self.name)
+
+#         # assert self.name is not None
+#         # HF_ColBERT = class_factory(self.name)
+
+#         self.model = HF_ColBERT.from_pretrained(
+#             name_or_path, colbert_config=self.colbert_config
+#         )
+#         self.model.to(DEVICE)
+#         self.raw_tokenizer = AutoTokenizer.from_pretrained(name_or_path)
+
+#         self.eval()
+
+#     @property
+#     def device(self):
+#         return self.model.device
+
+#     @property
+#     def bert(self):
+#         return self.model.LM
+
+#     @property
+#     def linear(self):
+#         return self.model.linear
+
+#     @property
+#     def score_scaler(self):
+#         return self.model.score_scaler
+
+#     def save(self, path):
+#         assert not path.endswith(
+#             ".dnn"
+#         ), f"{path}: We reserve *.dnn names for the deprecated checkpoint format."
+
+#         self.model.save_pretrained(path)
+#         self.raw_tokenizer.save_pretrained(path)
+
+#         self.colbert_config.save_for_checkpoint(path)
 
 
 class BaseColBERT(torch.nn.Module):
@@ -24,19 +82,29 @@ class BaseColBERT(torch.nn.Module):
         )
         self.name = self.colbert_config.model_name or name_or_path
 
-        try:
-            HF_ColBERT = class_factory(self.name)
-        except:
-            self.name = "bert-base-uncased"  # TODO: Double check that this is appropriate here in all cases
-            HF_ColBERT = class_factory(self.name)
+        # Load model as HF model
+        self.hf_config = AutoConfig.from_pretrained(name_or_path, trust_remote_code=True)
+        model_class = find_class_names(self.hf_config.model_type, "model")
 
-        # assert self.name is not None
-        # HF_ColBERT = class_factory(self.name)
+        if model_class != None:
+            model_class_object = getattr(transformers, model_class)
+        elif model_object_mapping.get(name_or_path) is not None:
+            model_class_object = model_object_mapping.get(name_or_path)
+        else:
+            raise ValueError(
+                "Could not find correct model class for the model type {model_type} in transformers library"
+            )
 
-        self.model = HF_ColBERT.from_pretrained(
-            name_or_path, colbert_config=self.colbert_config
-        )
-        self.model.to(DEVICE)
+        if self.hf_config.model_type == "t5":
+            self.model = T5EncoderModel.from_pretrained(name_or_path, config=self.colbert_config)
+        else:
+            self.model = AutoModel.from_pretrained(name_or_path, config=self.colbert_config)
+
+        # Add Linear projection layer and set some attributes to behave like native HF model
+        self.linear = torch.nn.Linear(self.hf_config.hidden_size, self.colbert_config.dim, bias=False)
+
+        setattr(self.model, self.model.base_model_prefix, model_class_object(self.hf_config))
+
         self.raw_tokenizer = AutoTokenizer.from_pretrained(name_or_path)
 
         self.eval()
@@ -47,20 +115,20 @@ class BaseColBERT(torch.nn.Module):
 
     @property
     def bert(self):
-        return self.model.LM
+        base_model_prefix = getattr(self.model, "base_model_prefix")
+        return getattr(self.model, base_model_prefix)
+        # return self.model.LM
 
-    @property
-    def linear(self):
-        return self.model.linear
+    # @property
+    # def linear(self):
+    #     return self.model.linear
 
     @property
     def score_scaler(self):
         return self.model.score_scaler
 
     def save(self, path):
-        assert not path.endswith(
-            ".dnn"
-        ), f"{path}: We reserve *.dnn names for the deprecated checkpoint format."
+        assert not path.endswith(".dnn"), f"{path}: We reserve *.dnn names for the deprecated checkpoint format."
 
         self.model.save_pretrained(path)
         self.raw_tokenizer.save_pretrained(path)
@@ -70,10 +138,10 @@ class BaseColBERT(torch.nn.Module):
 
 if __name__ == "__main__":
     import random
-    import numpy as np
 
-    from colbert.infra.run import Run
+    import numpy as np
     from colbert.infra.config import RunConfig
+    from colbert.infra.run import Run
 
     random.seed(12345)
     np.random.seed(12345)
