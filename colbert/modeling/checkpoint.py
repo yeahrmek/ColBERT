@@ -33,7 +33,7 @@ class Checkpoint(ColBERT):
 
         self.bert.resize_token_embeddings(len(self.query_tokenizer.tok))
 
-        self.amp_manager = MixedPrecisionManager(True)
+        # self.amp_manager = MixedPrecisionManager(True)
 
     def query(self, *args, to_cpu=False, **kw_args):
         with torch.no_grad():

@@ -1,7 +1,7 @@
 import torch
 import transformers
 from colbert.infra.config import ColBERTConfig
-from colbert.modeling.hf_colbert import class_factory, find_class_names, model_object_mapping
+from colbert.modeling.hf_colbert import class_factory
 from colbert.parameters import DEVICE
 from colbert.utils.utils import torch_load_dnn
 from transformers import AutoConfig, AutoModel, AutoTokenizer, T5EncoderModel
@@ -84,26 +84,14 @@ class BaseColBERT(torch.nn.Module):
 
         # Load model as HF model
         self.hf_config = AutoConfig.from_pretrained(name_or_path, trust_remote_code=True)
-        model_class = find_class_names(self.hf_config.model_type, "model")
-
-        if model_class != None:
-            model_class_object = getattr(transformers, model_class)
-        elif model_object_mapping.get(name_or_path) is not None:
-            model_class_object = model_object_mapping.get(name_or_path)
-        else:
-            raise ValueError(
-                "Could not find correct model class for the model type {model_type} in transformers library"
-            )
 
         if self.hf_config.model_type == "t5":
-            self.model = T5EncoderModel.from_pretrained(name_or_path, config=self.colbert_config)
+            self.bert = T5EncoderModel.from_pretrained(name_or_path, config=self.colbert_config)
         else:
-            self.model = AutoModel.from_pretrained(name_or_path, config=self.colbert_config)
+            self.bert = AutoModel.from_pretrained(name_or_path, config=self.colbert_config)
 
         # Add Linear projection layer and set some attributes to behave like native HF model
         self.linear = torch.nn.Linear(self.hf_config.hidden_size, self.colbert_config.dim, bias=False)
-
-        setattr(self.model, self.model.base_model_prefix, model_class_object(self.hf_config))
 
         self.raw_tokenizer = AutoTokenizer.from_pretrained(name_or_path)
 
@@ -111,17 +99,7 @@ class BaseColBERT(torch.nn.Module):
 
     @property
     def device(self):
-        return self.model.device
-
-    @property
-    def bert(self):
-        base_model_prefix = getattr(self.model, "base_model_prefix")
-        return getattr(self.model, base_model_prefix)
-        # return self.model.LM
-
-    # @property
-    # def linear(self):
-    #     return self.model.linear
+        return self.bert.device
 
     @property
     def score_scaler(self):
