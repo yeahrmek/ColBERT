@@ -4,7 +4,6 @@ from colbert.infra import ColBERTConfig
 from colbert.modeling.hf_colbert import class_factory
 from colbert.modeling.tokenization.common import TokenizerCallMixin, add_special_tokens
 from colbert.modeling.tokenization.utils import _sort_by_length, _split_into_batches
-from colbert.parameters import DEVICE
 
 
 class DocTokenizer(TokenizerCallMixin):
@@ -25,15 +24,11 @@ class DocTokenizer(TokenizerCallMixin):
 
         self.cls_token, self.cls_token_id = self.tok.cls_token, self.tok.cls_token_id
         self.sep_token, self.sep_token_id = self.tok.sep_token, self.tok.sep_token_id
-        if config.gpus > 0:
-            self.device = DEVICE
-        else:
-            self.device = "cpu"
 
     def tokenize(self, batch_text, add_special_tokens=False):
         assert type(batch_text) in [list, tuple], type(batch_text)
 
-        tokens = [self.tok.tokenize(x, add_special_tokens=False).to(self.device) for x in batch_text]
+        tokens = [self.tok.tokenize(x, add_special_tokens=False) for x in batch_text]
 
         if not add_special_tokens:
             return tokens
@@ -46,7 +41,7 @@ class DocTokenizer(TokenizerCallMixin):
     def encode(self, batch_text, add_special_tokens=False):
         assert type(batch_text) in [list, tuple], type(batch_text)
 
-        ids = self.tok(batch_text, add_special_tokens=False).to(self.device)["input_ids"]
+        ids = self.tok(batch_text, add_special_tokens=False)["input_ids"]
 
         if not add_special_tokens:
             return ids
@@ -68,7 +63,7 @@ class DocTokenizer(TokenizerCallMixin):
             truncation="longest_first",
             return_tensors="pt",
             max_length=self.doc_maxlen,
-        ).to(self.device)
+        )
 
         ids, mask = obj["input_ids"], obj["attention_mask"]
 

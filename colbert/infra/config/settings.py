@@ -165,6 +165,10 @@ class TrainingSettings:
 
     n_log_premises: int = None
 
+    num_negatives: int = None
+
+    num_in_file_negatives: int = None
+
 
 @dataclass
 class IndexingSettings:
