@@ -24,7 +24,7 @@ class BaseColBERT(torch.nn.Module):
         self.hf_config = AutoConfig.from_pretrained(name_or_path, trust_remote_code=True)
 
         if self.hf_config.model_type == "t5":
-            self.bert = T5EncoderModel.from_pretrained(name_or_path, config=self.colbert_config)
+            self.bert = T5EncoderModel.from_pretrained(name_or_path)
         else:
             self.bert = AutoModel.from_pretrained(name_or_path, config=self.colbert_config)
 
