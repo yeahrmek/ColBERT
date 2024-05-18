@@ -104,8 +104,8 @@ class TokenizerSettings:
 @dataclass
 class ResourceSettings:
     checkpoint: Union[str, Path_dr] = None
-    triples: Path_fr = None
-    collection: Path_fr = None
+    triples: Path_fr | Path_dr = None
+    collection: Path_fr | Path_dr = None
     queries: Path_fr = None
     index_name: str = None
 

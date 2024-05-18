@@ -5,9 +5,11 @@
 
 import itertools
 import os
+from pathlib import Path
 
 from colbert.evaluation.loaders import load_collection, load_collection_from_jsonl
 from colbert.infra.run import Run
+from datasets import Dataset
 
 
 class Collection:
@@ -17,10 +19,18 @@ class Collection:
 
     def __iter__(self):
         # TODO: If __data isn't there, stream from disk!
+        if isinstance(self.data, Dataset):
+            return self.__iter_dataset__()
         return self.data.__iter__()
+
+    def __iter_dataset__(self):
+        for row in self.data:
+            yield row["passage"]
 
     def __getitem__(self, item):
         # TODO: Load from disk the first time this is called. Unless self.data is already not None.
+        if isinstance(self.data, Dataset):
+            return self.data[item]["passage"]
         return self.data[item]
 
     def __len__(self):
@@ -29,7 +39,11 @@ class Collection:
 
     def _load_file(self, path):
         self.path = path
-        return self._load_tsv(path) if path.endswith(".tsv") else self._load_jsonl(path)
+        if Path(path).is_dir():
+            return Dataset.load_from_disk(path)
+        elif path.endswith(".tsv"):
+            return self._load_tsv(path)
+        return self._load_jsonl(path)
 
     def _load_tsv(self, path):
         return load_collection(path)
@@ -80,9 +94,7 @@ class Collection:
                 return
 
     def get_chunksize(self):
-        return min(
-            25_000, 1 + len(self) // Run().nranks
-        )  # 25k is great, 10k allows things to reside on GPU??
+        return min(25_000, 1 + len(self) // Run().nranks)  # 25k is great, 10k allows things to reside on GPU??
 
     @classmethod
     def cast(cls, obj):
